@@ -33,7 +33,8 @@ const corsOptions = {
     } else {
       callback(new Error('Not allowed by CORS'));
     }
-  }
+  },
+  credentials: true 
 };
 app.use(cors(corsOptions));
 
@@ -63,69 +64,78 @@ io.on("connection", (socket) => {
     console.log(`Socket joined channel ${channelId}`);
   });
 
-  socket.on("sendMessage", async (data) => {
-    try {
-      const senderId = mongoose.Types.ObjectId(data.sender);
-      const channelId = mongoose.Types.ObjectId(data.channel);
+ socket.on("sendMessage", async (data) => {
+  try {
+    const senderId = mongoose.Types.ObjectId(data.sender);
+    const channelId = mongoose.Types.ObjectId(data.channel);
 
-      const newMessage = new Message({
-        content: data.content,
-        sender: senderId,
-        channel: channelId,
-        attachments: data.attachments || [],
-        isAI: data.isAI || false
-      });
+    // Save message
+    const newMessage = new Message({
+      content: data.content,
+      sender: senderId,
+      channel: channelId,
+      attachments: data.attachments || [],
+      isAI: data.isAI || false
+    });
 
-     const savedMessage = await newMessage.save();
-        io.to(data.channel).emit("messageReceived", savedMessage);
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+    const savedMessage = await newMessage.save();
 
-    // Save file if attached (you must handle file upload separately)
-    const { content, sender, channel, file } = data;
-    if (file) {
+    // If file is attached
+    let fileData = null;
+    if (data.file) {
       fileData = new FileAttachment({
-        filename: file.filename,
-        url: `/uploads/files/${file.filename}`,
-        uploadedBy: user.id,
-        message: newMessage._id,
+        filename: data.file.filename,
+        url: `/uploads/files/${data.file.filename}`,
+        uploadedBy: senderId,
+        message: savedMessage._id,
       });
       await fileData.save();
     }
 
     const payload = {
-      _id: newMessage._id,
-      text,
-      sender: user.id,
+      _id: savedMessage._id,
+      content: savedMessage.content,
+      sender: senderId,
+      attachments: savedMessage.attachments,
       file: fileData ? fileData.url : null,
-      createdAt: newMessage.createdAt,
-      status: "delivered", // For example
+      createdAt: savedMessage.createdAt,
+      status: "delivered",
     };
 
+    // Emit message to room
     io.to(channelId).emit("newMessage", payload);
-    socket.emit("messageDelivered", { messageId: newMessage._id });
-    socket.emit("messageSeen", { messageId });
+
+    // Emit ack to sender
+    socket.emit("messageDelivered", { messageId: savedMessage._id });
 
     // AI Response
-    if (text?.toLowerCase().includes("@ai")) {
-      const aiReply = await generateAIResponse(text);
+    if (savedMessage.content?.toLowerCase().includes("@ai")) {
+      const aiReply = await generateAIResponse(savedMessage.content);
+
       const aiMessage = new Message({
-        text: aiReply,
-        channelId,
+        content: aiReply,
+        channel: channelId,
         sender: null,
         isAI: true,
       });
-      await aiMessage.save();
+
+      const savedAIMessage = await aiMessage.save();
 
       io.to(channelId).emit("newMessage", {
-        _id: aiMessage._id,
-        text: aiReply,
+        _id: savedAIMessage._id,
+        content: aiReply,
         sender: null,
         isAI: true,
-        createdAt: aiMessage.createdAt,
+        createdAt: savedAIMessage.createdAt,
       });
     }
+
+  } catch (error) {
+    console.error("Error sending message:", error);
+  }
+});
+  socket.on("typing", ({ channelId, userId }) => {
+    socket.to(channelId).emit("userTyping", { userId });
   });
 
   socket.on("disconnect", () => {
