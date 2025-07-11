@@ -1,5 +1,7 @@
-import { Sidebar } from "lucide-react";
 import { useChatStore } from "../store/useChatStore"
+import ChatContainer from "../Components/ChatContainer";
+import NoChatSelected from "../Components/NoChatSelected";
+import Sidebar from "../Components/sidebar";
 
 const HomePage = () => {
   const {selectedUser} = useChatStore();
@@ -10,6 +12,8 @@ const HomePage = () => {
         <div className="flex h-full rounded-lg overflow-hidden">
 
           <Sidebar />
+          {!selectedUser ? <NoChatSelected /> : <ChatContainer />}
+
         </div>
       </div>
       </div>

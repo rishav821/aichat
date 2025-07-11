@@ -8,4 +8,4 @@ const fileSchema = new mongoose.Schema({
   message:    { type: mongoose.Schema.Types.ObjectId, ref: "Message" }
 }, { timestamps: true });
 
-module.exports = mongoose.model("FileAttachment", fileSchema);
+module.exports = mongoose.models.FileAttachment || mongoose.model("FileAttachment", fileSchema);

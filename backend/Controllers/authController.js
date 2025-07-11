@@ -1,4 +1,4 @@
-const User = require('../models/User');
+const User = require('../Models/user');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const path = require('path');
@@ -9,8 +9,8 @@ const registerUser = async (req, res) => {
   const existing = await User.findOne({ email });
   if (existing) return res.status(400).json({ message: 'Email already registered' });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const user = new User({ username, email, password: hashedPassword });
+
+  const user = new User({ username, email, password });
   await user.save();
 
   res.status(201).json({ message: 'User registered successfully' });
